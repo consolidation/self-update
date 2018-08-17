@@ -1,6 +1,6 @@
 <?php
 
-namespace Robo;
+namespace SelfUpdate;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
