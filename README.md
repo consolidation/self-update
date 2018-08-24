@@ -14,3 +14,4 @@ $app->add($cmd);
 ## Similar Projects
 
 - https://github.com/DavaHome/self-update
+- https://github.com/padraic/phar-updater
