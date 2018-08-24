@@ -45,14 +45,19 @@ if (!preg_match("#$regex#", $contents, $matches)) {
     print "A semver version not found in $path\n";
     exit(1);
 }
+$matches += ['prerelease' => '', 'build' => ''];
 
 // Calculate the stable and next version strings
-$original_version = $matches[0];
+$original_version_match = $matches[0];
+$original_version = $matches['version'] . $matches['prerelease'] . $matches['build'];
 $stable_version = $matches['version'] . (has_prerelease($matches) ? $matches['prerelease'] : '');
 $next_version = next_version($matches);
 
-$stable_version_contents = str_replace($original_version, $stable_version, $contents);
-$next_version_contents = str_replace($original_version, $next_version, $contents);
+$stable_version_replacement = str_replace($original_version, $stable_version, $original_version_match);
+$next_version_replacement = str_replace($original_version, $next_version, $original_version_match);
+
+$stable_version_contents = str_replace($original_version_match, $stable_version_replacement, $contents);
+$next_version_contents = str_replace($original_version_match, $next_version_replacement, $contents);
 
 // Write the stable version into the version file, tag and push the release
 if (!$simulate) {
