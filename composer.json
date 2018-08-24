@@ -10,7 +10,7 @@
         {
             "name": "Greg Anderson",
             "email": "greg.1.anderson@greenknowe.org"
-        },
+        }
     ],
     "autoload":{
         "psr-4":{
