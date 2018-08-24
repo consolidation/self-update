@@ -25,6 +25,9 @@
     "bin": [
         "scripts/release"
     ],
+    "scripts": {
+        "release":  "./scripts/release VERSION"
+    },
     "config": {
         "optimize-autoloader": true,
         "sort-packages": true,
