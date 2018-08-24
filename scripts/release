@@ -17,7 +17,6 @@ $options = getopt ("dv", [
   'pattern' => "^SEMVER$",
 ];
 $simulate = array_key_exists('simulate', $options);
-$run = $simulate ? 'run_simulated' : 'run';
 
 $pos_args = array_slice($argv, $optind);
 $path = array_shift($pos_args);
@@ -63,20 +62,26 @@ $next_version_contents = str_replace($original_version_match, $next_version_repl
 if (!$simulate) {
     file_put_contents($path, $stable_version_contents);
 }
+else {
+    print "Replace stable version in $path:\n> $stable_version_replacement\n";
+}
 
-$run('git add {path}', ['{path}' => $path]);
-$run('git commit -m "Version {version}"', ['{version}' => $stable_version]);
-$run('git tag {version}', ['{version}' => $stable_version]);
-$run('git push origin {version}', ['{version}' => $stable_version]);
+run('git add {path}', ['{path}' => $path], $simulate);
+run('git commit -m "Version {version}"', ['{version}' => $stable_version], $simulate);
+run('git tag {version}', ['{version}' => $stable_version], $simulate);
+run('git push origin {version}', ['{version}' => $stable_version], $simulate);
 
 // Put the next version into the version file and push the result back to master
 if (!$simulate) {
     file_put_contents($path, $next_version_contents);
 }
+else {
+    print "Replace next version in $path:\n> $next_version_replacement\n";
+}
 
-$run('git add {path}', ['{path}' => $path]);
-$run('git commit -m "Back to {version}"', ['{version}' => $next_version]);
-$run('git push origin master');
+run('git add {path}', ['{path}' => $path], $simulate);
+run('git commit -m "Back to {version}"', ['{version}' => $next_version], $simulate);
+run('git push origin master', [], $simulate);
 
 exit(0);
 
@@ -95,20 +100,15 @@ function inflect($cmd, $parameters = [])
 }
 
 /**
- * run_simulated merely prints the command that would have run
- */
-function run_simulated($cmd, $parameters = [])
-{
-    $cmd = inflect($cmd, $parameters);
-    print "$cmd\n";
-}
-
-/**
  * Run the specified command. Abort most rudely if an error is encountered
  */
-function run($cmd, $parameters = [])
+function run($cmd, $parameters = [], $simulate = false)
 {
     $cmd = inflect($cmd, $parameters);
+    if ($simulate) {
+        print "$cmd\n";
+        return;
+    }
     passthru($cmd, $status);
     if ($status) {
         exit($status);
