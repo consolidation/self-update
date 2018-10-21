@@ -40,7 +40,7 @@ if ($regex == $options['pattern']) {
 
 // Read the contents of the version file and find the version string
 $contents = file_get_contents($path);
-if (!preg_match("#$regex#", $contents, $matches)) {
+if (!preg_match("#$regex#m", $contents, $matches)) {
     print "A semver version not found in $path\n";
     exit(1);
 }
