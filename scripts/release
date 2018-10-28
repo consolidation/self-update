@@ -10,13 +10,15 @@
 $semverRegEx = '(?<version>[0-9]+\.[0-9]+\.[0-9]+)(?<prerelease>-[0-9a-zA-Z.]+)?(?<build>\+[0-9a-zA-Z.]*)?';
 
 $optind = null;
-$options = getopt ("dv", [
+$options = getopt ("dvy", [
   'pattern:',
   'simulate',
+  'yes',
 ], $optind) + [
   'pattern' => "^SEMVER$",
 ];
 $simulate = array_key_exists('simulate', $options);
+$yes = array_key_exists('yes', $options) || array_key_exists('y', $options);
 
 $pos_args = array_slice($argv, $optind);
 $path = array_shift($pos_args);
@@ -58,6 +60,17 @@ $next_version_replacement = str_replace($original_version, $next_version, $origi
 $stable_version_contents = str_replace($original_version_match, $stable_version_replacement, $contents);
 $next_version_contents = str_replace($original_version_match, $next_version_replacement, $contents);
 
+$composerContents = file_get_contents('composer.json');
+$composerData = json_decode($composerContents, true);
+$project = $composerData['name'];
+
+$msg = "Release $project version $stable_version";
+$dashes = str_pad('', strlen($msg) + 8, '-', STR_PAD_LEFT);
+
+print "\n$dashes\n\n";
+print "    $msg\n";
+print "\n$dashes\n\n";
+
 // Write the stable version into the version file, tag and push the release
 if (!$simulate) {
     file_put_contents($path, $stable_version_contents);
@@ -80,7 +93,7 @@ else {
 }
 
 run('git add {path}', ['{path}' => $path], $simulate);
-run('git commit -m "Back to {version}"', ['{version}' => $next_version], $simulate);
+run('git commit -m "[ci skip] Back to {version}"', ['{version}' => $next_version], $simulate);
 run('git push origin master', [], $simulate);
 
 exit(0);
