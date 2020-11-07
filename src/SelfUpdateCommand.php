@@ -2,8 +2,10 @@
 
 namespace SelfUpdate;
 
+use Composer\Semver\VersionParser;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
 
@@ -41,6 +43,7 @@ class SelfUpdateCommand extends Command
         $this
             ->setAliases(array('update'))
             ->setDescription("Updates $app to the latest version.")
+            ->addOption('allow-unstable', NULL, InputOption::VALUE_NONE, 'Allow unstable (e.g., alpha, beta, etc.) releases to be downloaded')
             ->setHelp(
                 <<<EOT
 The <info>self-update</info> command checks github for newer
@@ -49,7 +52,7 @@ EOT
             );
     }
 
-    protected function getLatestReleaseFromGithub()
+    protected function getReleasesFromGithub()
     {
         $opts = [
             'http' => [
@@ -68,9 +71,29 @@ EOT
         if (! isset($releases[0])) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
+        return $releases;
+    }
 
+    protected function getLatestReleaseFromGithub()
+    {
+        $releases = $this->getReleasesFromGithub();
         $version = $releases[0]->tag_name;
         $url     = $releases[0]->assets[0]->browser_download_url;
+
+        return [ $version, $url ];
+    }
+
+    protected function getLatestStableReleaseFromGithub()
+    {
+        $releases = $this->getReleasesFromGithub();
+
+        foreach ($releases as $release) {
+            $version = $release->tag_name;
+            $url     = $release->assets[0]->browser_download_url;
+            if (VersionParser::parseStability($version) === 'stable') {
+                break;
+            }
+        }
 
         return [ $version, $url ];
     }
@@ -102,8 +125,12 @@ EOT
             );
         }
 
-        list( $latest, $downloadUrl ) = $this->getLatestReleaseFromGithub();
-
+        if ($input->getOption('allow-unstable') !== FALSE) {
+            list( $latest, $downloadUrl ) = $this->getLatestReleaseFromGithub();
+        }
+        else {
+            list( $latest, $downloadUrl ) = $this->getLatestStableReleaseFromGithub();
+        }
 
         if ($this->currentVersion == $latest) {
             $output->writeln('No update available');
