@@ -95,6 +95,10 @@ EOT
             }
         }
 
+        if (VersionParser::parseStability($version) !== 'stable') {
+            throw new \Exception('API error - no stable release found at GitHub repository ' . $this->gitHubRepository);
+        }
+
         return [ $version, $url ];
     }
 
