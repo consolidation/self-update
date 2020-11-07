@@ -138,7 +138,7 @@ EOT
 
         if ($this->currentVersion == $latest) {
             $output->writeln('No update available');
-            return;
+            return 0;
         }
 
         $fs = new sfFilesystem();
