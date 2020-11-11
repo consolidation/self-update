@@ -41,7 +41,7 @@ class SelfUpdateCommand extends Command
         $app = $this->applicationName;
 
         $this
-            ->setAliases(array('update'))
+            ->setAliases(array('update', 'self-update'))
             ->setDescription("Updates $app to the latest version.")
             ->addOption('allow-unstable', NULL, InputOption::VALUE_NONE, 'Allow unstable (e.g., alpha, beta, etc.) releases to be downloaded')
             ->setHelp(
