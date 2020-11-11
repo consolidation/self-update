@@ -40,10 +40,12 @@ class SelfUpdateCommand extends Command
     {
         $app = $this->applicationName;
 
+        // Follow Composer's pattern of command and channel names.
         $this
             ->setAliases(array('update', 'self-update'))
             ->setDescription("Updates $app to the latest version.")
-            ->addOption('allow-unstable', NULL, InputOption::VALUE_NONE, 'Allow unstable (e.g., alpha, beta, etc.) releases to be downloaded')
+            ->addOption('stable', NULL, InputOption::VALUE_NONE, 'Use stable releases (default)')
+            ->addOption('preview', NULL, InputOption::VALUE_NONE, 'Preview unstable (e.g., alpha, beta, etc.) releases')
             ->setHelp(
                 <<<EOT
 The <info>self-update</info> command checks github for newer
@@ -129,7 +131,7 @@ EOT
             );
         }
 
-        if ($input->getOption('allow-unstable') !== FALSE) {
+        if ($input->getOption('preview') !== FALSE) {
             list( $latest, $downloadUrl ) = $this->getLatestReleaseFromGithub();
         }
         else {
