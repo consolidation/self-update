@@ -107,7 +107,7 @@ EOT
 
         if ($this->currentVersion == $latest) {
             $output->writeln('No update available');
-            return;
+            return 0;
         }
 
         $fs = new sfFilesystem();
@@ -136,6 +136,7 @@ EOT
             }
             $output->writeln('<error>The download is corrupted (' . $e->getMessage() . ').</error>');
             $output->writeln('<error>Please re-run the self-update command to try again.</error>');
+            return 1;
         }
     }
 
