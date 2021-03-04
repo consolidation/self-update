@@ -104,6 +104,16 @@ EOT
         return [ $version, $url ];
     }
 
+    public function getLatest($preview): array {
+        if ($preview !== FALSE) {
+            list($latest, $downloadUrl) = $this->getLatestReleaseFromGithub();
+        }
+        else {
+            list($latest, $downloadUrl) = $this->getLatestStableReleaseFromGithub();
+        }
+        return [$latest, $downloadUrl];
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -131,12 +141,7 @@ EOT
             );
         }
 
-        if ($input->getOption('preview') !== FALSE) {
-            list( $latest, $downloadUrl ) = $this->getLatestReleaseFromGithub();
-        }
-        else {
-            list( $latest, $downloadUrl ) = $this->getLatestStableReleaseFromGithub();
-        }
+        list($latest, $downloadUrl) = $this->getLatest($input->getOption('preview'));
 
         if ($this->currentVersion == $latest) {
             $output->writeln('No update available');
