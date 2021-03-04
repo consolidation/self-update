@@ -174,6 +174,7 @@ EOT
             }
             $output->writeln('<error>The download is corrupted (' . $e->getMessage() . ').</error>');
             $output->writeln('<error>Please re-run the self-update command to try again.</error>');
+            return 1;
         }
     }
 
