@@ -79,10 +79,13 @@ EOT
     protected function getLatestReleaseFromGithub()
     {
         $releases = $this->getReleasesFromGithub();
-        $version = $releases[0]->tag_name;
-        $url     = $releases[0]->assets[0]->browser_download_url;
-
-        return [ $version, $url ];
+        foreach ($releases as $release) {
+            if (count($release->assets)) {
+                $version = $release->tag_name;
+                $url = $release->assets[0]->browser_download_url;
+                return [ $version, $url ];
+            }
+        }
     }
 
     protected function getLatestStableReleaseFromGithub()
@@ -92,7 +95,7 @@ EOT
         foreach ($releases as $release) {
             $version = $release->tag_name;
             $url     = $release->assets[0]->browser_download_url;
-            if (VersionParser::parseStability($version) === 'stable') {
+            if (count($release->assets) && VersionParser::parseStability($version) === 'stable') {
                 break;
             }
         }
