@@ -82,7 +82,7 @@ EOT
         foreach ($releases as $release) {
             if (count($release->assets)) {
                 $version = $release->tag_name;
-                $url = $releases[0]->assets[0]->browser_download_url;
+                $url = $release->assets[0]->browser_download_url;
                 return [ $version, $url ];
             }
         }
