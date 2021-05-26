@@ -80,7 +80,7 @@ EOT
     {
         $releases = $this->getReleasesFromGithub();
         foreach ($releases as $release) {
-            if (count($release->assets && is_object($release->assets[0])) {
+            if (count($release->assets) && is_object($release->assets[0])) {
                 $version = $release->tag_name;
                 $url = $release->assets[0]->browser_download_url;
                 return [ $version, $url ];
@@ -93,7 +93,7 @@ EOT
         $releases = $this->getReleasesFromGithub();
 
         foreach ($releases as $release) {
-            if (count($release->assets && is_object($release->assets[0])) {
+            if (count($release->assets) && is_object($release->assets[0])) {
                 $version = $release->tag_name;
                 $url     = $release->assets[0]->browser_download_url;
                 if (count($release->assets) && VersionParser::parseStability($version) === 'stable') {
