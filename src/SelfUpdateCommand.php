@@ -2,8 +2,10 @@
 
 namespace SelfUpdate;
 
+use Composer\Semver\VersionParser;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
 
@@ -38,9 +40,12 @@ class SelfUpdateCommand extends Command
     {
         $app = $this->applicationName;
 
+        // Follow Composer's pattern of command and channel names.
         $this
-            ->setAliases(array('update'))
+            ->setAliases(array('update', 'self-update'))
             ->setDescription("Updates $app to the latest version.")
+            ->addOption('stable', NULL, InputOption::VALUE_NONE, 'Use stable releases (default)')
+            ->addOption('preview', NULL, InputOption::VALUE_NONE, 'Preview unstable (e.g., alpha, beta, etc.) releases')
             ->setHelp(
                 <<<EOT
 The <info>self-update</info> command checks github for newer
@@ -49,7 +54,7 @@ EOT
             );
     }
 
-    protected function getLatestReleaseFromGithub()
+    protected function getReleasesFromGithub()
     {
         $opts = [
             'http' => [
@@ -68,11 +73,50 @@ EOT
         if (! isset($releases[0])) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
+        return $releases;
+    }
 
-        $version = $releases[0]->tag_name;
-        $url     = $releases[0]->assets[0]->browser_download_url;
+    protected function getLatestReleaseFromGithub()
+    {
+        $releases = $this->getReleasesFromGithub();
+        foreach ($releases as $release) {
+            if (count($release->assets) && is_object($release->assets[0])) {
+                $version = $release->tag_name;
+                $url = $release->assets[0]->browser_download_url;
+                return [ $version, $url ];
+            }
+        }
+    }
+
+    protected function getLatestStableReleaseFromGithub()
+    {
+        $releases = $this->getReleasesFromGithub();
+
+        foreach ($releases as $release) {
+            if (count($release->assets) && is_object($release->assets[0])) {
+                $version = $release->tag_name;
+                $url     = $release->assets[0]->browser_download_url;
+                if (count($release->assets) && VersionParser::parseStability($version) === 'stable') {
+                    break;
+                }
+            }
+        }
+
+        if (VersionParser::parseStability($version) !== 'stable') {
+            throw new \Exception('API error - no stable release found at GitHub repository ' . $this->gitHubRepository);
+        }
 
         return [ $version, $url ];
+    }
+
+    public function getLatest($preview): array {
+        if ($preview !== FALSE) {
+            list($latest, $downloadUrl) = $this->getLatestReleaseFromGithub();
+        }
+        else {
+            list($latest, $downloadUrl) = $this->getLatestStableReleaseFromGithub();
+        }
+        return [$latest, $downloadUrl];
     }
 
     /**
@@ -102,8 +146,7 @@ EOT
             );
         }
 
-        list( $latest, $downloadUrl ) = $this->getLatestReleaseFromGithub();
-
+        list($latest, $downloadUrl) = $this->getLatest($input->getOption('preview'));
 
         if ($this->currentVersion == $latest) {
             $output->writeln('No update available');
