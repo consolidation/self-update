@@ -9,7 +9,7 @@ jobs:
         working-directory: self-update-fixture
     container:
       image: quay.io/pantheon-public/php-ci:v7.4
-    name: Checkout & build Phar
+    name: Run functional tests
     steps:
       - name: Checkout
         uses: actions/checkout@v2
