@@ -21,8 +21,6 @@ jobs:
           repository: kporras07/self-update-fixture
           path: self-update-fixture
           ref: self-update
-      #- name: Validate Code
-      #  run: composer code:lint
       - name: Run Composer Install
         run: composer install
       - name: Add path repository
