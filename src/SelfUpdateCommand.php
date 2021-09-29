@@ -3,6 +3,7 @@
 namespace SelfUpdate;
 
 use Composer\Semver\VersionParser;
+use Composer\Semver\Semver;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -46,6 +47,7 @@ class SelfUpdateCommand extends Command
             ->setDescription("Updates $app to the latest version.")
             ->addOption('stable', NULL, InputOption::VALUE_NONE, 'Use stable releases (default)')
             ->addOption('preview', NULL, InputOption::VALUE_NONE, 'Preview unstable (e.g., alpha, beta, etc.) releases')
+            ->addOption('compatible', NULL, InputOption::VALUE_NONE, 'Stay on current major version')
             ->setHelp(
                 <<<EOT
 The <info>self-update</info> command checks github for newer
@@ -54,6 +56,9 @@ EOT
             );
     }
 
+    /**
+     * Get all releases from Github.
+     */
     protected function getReleasesFromGithub()
     {
         $opts = [
@@ -73,50 +78,50 @@ EOT
         if (! isset($releases[0])) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
-        return $releases;
-    }
-
-    protected function getLatestReleaseFromGithub()
-    {
-        $releases = $this->getReleasesFromGithub();
+        $parsed_releases = [];
         foreach ($releases as $release) {
-            if (count($release->assets) && is_object($release->assets[0])) {
-                $version = $release->tag_name;
-                $url = $release->assets[0]->browser_download_url;
-                return [ $version, $url ];
-            }
+            $parsed_releases[$release->tag_name] = [
+                'tag_name' => $release->tag_name,
+                'assets' => $release->assets,
+            ];
         }
+        $sorted_versions = Semver::rsort(array_keys($parsed_releases));
+        $sorted_releases = [];
+        foreach ($sorted_versions as $version) {
+            $sorted_releases[$version] = $parsed_releases[$version];
+        }
+        return $sorted_releases;
     }
 
-    protected function getLatestStableReleaseFromGithub()
-    {
+    /**
+     * Get latest release according to given constraints
+     */
+    public function getLatestReleaseFromGithub($preview = false, $major_constraint = ''): array {
         $releases = $this->getReleasesFromGithub();
+        $version = null;
+        $url = null;
 
         foreach ($releases as $release) {
-            if (count($release->assets) && is_object($release->assets[0])) {
-                $version = $release->tag_name;
-                $url     = $release->assets[0]->browser_download_url;
-                if (count($release->assets) && VersionParser::parseStability($version) === 'stable') {
-                    break;
+            // We do not care about this release if it does not contain assets.
+            if (count($release['assets']) && is_object($release['assets'][0])) {
+                $current_version = $release['tag_name'];
+                if ($major_constraint) {
+                    if (!Semver::satisfies($current_version, $major_constraint)) {
+                        // If it does not satisfies, look for the next one.
+                        continue;
+                    }
                 }
+                if (!$preview && VersionParser::parseStability($current_version) !== 'stable') {
+                    // If preview not requested and current version is not stable, look for the next one.
+                    continue;
+                }
+                $url = $release['assets'][0]->browser_download_url;
+                $version = $current_version;
+                break;
             }
-        }
-
-        if (VersionParser::parseStability($version) !== 'stable') {
-            throw new \Exception('API error - no stable release found at GitHub repository ' . $this->gitHubRepository);
         }
 
         return [ $version, $url ];
-    }
-
-    public function getLatest($preview): array {
-        if ($preview !== FALSE) {
-            list($latest, $downloadUrl) = $this->getLatestReleaseFromGithub();
-        }
-        else {
-            list($latest, $downloadUrl) = $this->getLatestStableReleaseFromGithub();
-        }
-        return [$latest, $downloadUrl];
     }
 
     /**
@@ -146,9 +151,24 @@ EOT
             );
         }
 
-        list($latest, $downloadUrl) = $this->getLatest($input->getOption('preview'));
+        $preview = $input->getOption('preview');
+        $stable = $input->getOption('stable') || !$preview;
+        $compatible = $input->getOption('compatible');
+        $major_constraint = '';
+        if ($preview && $stable) {
+            throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
+        }
 
-        if ($this->currentVersion == $latest) {
+        if ($compatible) {
+            if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
+                $current_major = $matches[1];
+                $major_constraint = "^${current_major}";
+            }
+        }
+
+        list($latest, $downloadUrl) = $this->getLatestReleaseFromGithub($preview, $major_constraint);
+
+        if (!$latest || Semver::satisfies($latest, $this->currentVersion)) {
             $output->writeln('No update available');
             return 0;
         }
