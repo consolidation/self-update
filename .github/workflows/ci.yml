@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: self-update-fixtures
+        working-directory: self-update-fixture
     container:
       image: quay.io/pantheon-public/php-ci:v7.4
     name: Checkout & build Phar
@@ -18,8 +18,8 @@ jobs:
       - name: Checkout self-update-fixtures
         uses: actions/checkout@v2
         with:
-          repository: kporras07/self-update-fixtures
-          path: self-update-fixtures
+          repository: kporras07/self-update-fixture
+          path: self-update-fixture
           ref: self-update
       #- name: Validate Code
       #  working-directory: self-update
