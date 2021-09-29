@@ -22,7 +22,6 @@ jobs:
           path: self-update-fixture
           ref: self-update
       #- name: Validate Code
-      #  working-directory: self-update
       #  run: composer code:lint
       - name: Run Composer Install
         run: composer install
@@ -32,8 +31,6 @@ jobs:
         run: COMPOSER_MIRROR_PATH_REPOS=1 composer require consolidation/self-update:"*"
       - name: Phar Build
         run: composer phar:build
-      - name: Print current version
-        run: ./wonder info
       - name: Get current version
         run: ./wonder info | grep "1.2"
       - name: Backup current wonder binary
