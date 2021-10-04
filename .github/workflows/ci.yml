@@ -18,7 +18,7 @@ jobs:
       - name: Checkout self-update-fixtures
         uses: actions/checkout@v2
         with:
-          repository: kporras07/self-update-fixture
+          repository: consolidation/self-update-fixture
           path: self-update-fixture
           ref: self-update
       - name: Run Composer Install
