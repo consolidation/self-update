@@ -2,8 +2,11 @@
 
 namespace SelfUpdate;
 
+use Composer\Semver\VersionParser;
+use Composer\Semver\Semver;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
 
@@ -38,9 +41,13 @@ class SelfUpdateCommand extends Command
     {
         $app = $this->applicationName;
 
+        // Follow Composer's pattern of command and channel names.
         $this
-            ->setAliases(array('update'))
+            ->setAliases(array('update', 'self-update'))
             ->setDescription("Updates $app to the latest version.")
+            ->addOption('stable', NULL, InputOption::VALUE_NONE, 'Use stable releases (default)')
+            ->addOption('preview', NULL, InputOption::VALUE_NONE, 'Preview unstable (e.g., alpha, beta, etc.) releases')
+            ->addOption('compatible', NULL, InputOption::VALUE_NONE, 'Stay on current major version')
             ->setHelp(
                 <<<EOT
 The <info>self-update</info> command checks github for newer
@@ -49,7 +56,10 @@ EOT
             );
     }
 
-    protected function getLatestReleaseFromGithub()
+    /**
+     * Get all releases from Github.
+     */
+    protected function getReleasesFromGithub()
     {
         $opts = [
             'http' => [
@@ -68,9 +78,48 @@ EOT
         if (! isset($releases[0])) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
+        $parsed_releases = [];
+        foreach ($releases as $release) {
+            $parsed_releases[$release->tag_name] = [
+                'tag_name' => $release->tag_name,
+                'assets' => $release->assets,
+            ];
+        }
+        $sorted_versions = Semver::rsort(array_keys($parsed_releases));
+        $sorted_releases = [];
+        foreach ($sorted_versions as $version) {
+            $sorted_releases[$version] = $parsed_releases[$version];
+        }
+        return $sorted_releases;
+    }
 
-        $version = $releases[0]->tag_name;
-        $url     = $releases[0]->assets[0]->browser_download_url;
+    /**
+     * Get latest release according to given constraints
+     */
+    public function getLatestReleaseFromGithub($preview = false, $major_constraint = ''): array {
+        $releases = $this->getReleasesFromGithub();
+        $version = null;
+        $url = null;
+
+        foreach ($releases as $release) {
+            // We do not care about this release if it does not contain assets.
+            if (count($release['assets']) && is_object($release['assets'][0])) {
+                $current_version = $release['tag_name'];
+                if ($major_constraint) {
+                    if (!Semver::satisfies($current_version, $major_constraint)) {
+                        // If it does not satisfies, look for the next one.
+                        continue;
+                    }
+                }
+                if (!$preview && VersionParser::parseStability($current_version) !== 'stable') {
+                    // If preview not requested and current version is not stable, look for the next one.
+                    continue;
+                }
+                $url = $release['assets'][0]->browser_download_url;
+                $version = $current_version;
+                break;
+            }
+        }
 
         return [ $version, $url ];
     }
@@ -102,10 +151,24 @@ EOT
             );
         }
 
-        list( $latest, $downloadUrl ) = $this->getLatestReleaseFromGithub();
+        $preview = $input->getOption('preview');
+        $stable = $input->getOption('stable') || !$preview;
+        $compatible = $input->getOption('compatible');
+        $major_constraint = '';
+        if ($preview && $stable) {
+            throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
+        }
 
+        if ($compatible) {
+            if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
+                $current_major = $matches[1];
+                $major_constraint = "^${current_major}";
+            }
+        }
 
-        if ($this->currentVersion == $latest) {
+        list($latest, $downloadUrl) = $this->getLatestReleaseFromGithub($preview, $major_constraint);
+
+        if (!$latest || Semver::satisfies($latest, $this->currentVersion)) {
             $output->writeln('No update available');
             return 0;
         }
