@@ -1,11 +1,11 @@
 #!/bin/bash
 
-set -ex
-
 if [ "$#" -ne 1 ]; then
     echo "You should use fixtures path as parameter"
     exit 1
 fi
+
+set -ex
 
 cd $1
 
