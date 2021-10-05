@@ -31,5 +31,7 @@ jobs:
         run: composer phar:build
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v1
+        with:
+          sudo: false
       - name: Run tests
         run: ./.github/workflows/test.sh
