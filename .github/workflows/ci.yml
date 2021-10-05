@@ -29,17 +29,5 @@ jobs:
         run: COMPOSER_MIRROR_PATH_REPOS=1 composer require consolidation/self-update:"*"
       - name: Phar Build
         run: composer phar:build
-      - name: Get current version
-        run: ./wonder info | grep "1.2"
-      - name: Backup current wonder binary
-        run: cp ./wonder ./wonder-backup
-      - name: Self update --stable
-        run: cp -r ./wonder-backup wonder && ./wonder self:update --stable && ./wonder info | grep "2.0"
-      - name: Self update
-        run: cp -r ./wonder-backup wonder && ./wonder self:update && ./wonder info | grep "2.0"
-      - name: Self update --preview
-        run: cp -r ./wonder-backup wonder && ./wonder self:update --preview && ./wonder info | grep "2.1-beta1"
-      - name: Self update --stable --compatible
-        run: cp -r ./wonder-backup wonder && ./wonder self:update --stable --compatible && ./wonder info | grep "1.3"
-      - name: Self update --compatible
-        run: cp -r ./wonder-backup wonder && ./wonder self:update --compatible && ./wonder info | grep "1.3"
+      - name: Run tests
+        run: ./.github/workflows/test.sh
