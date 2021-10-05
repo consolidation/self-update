@@ -34,4 +34,5 @@ jobs:
         with:
           sudo: false
       - name: Run tests
-        run: ./.github/workflows/test.sh
+        run: ./.github/workflows/test.sh ../self-update-fixture
+        working-directory: self-update

@@ -2,6 +2,13 @@
 
 set -ex
 
+if [ "$#" -ne 1 ]; then
+    echo "You should use fixtures path as parameter"
+    exit 1
+fi
+
+cd $1
+
 echo "Get wonder current version"
 ./wonder info | grep "1.2"
 
