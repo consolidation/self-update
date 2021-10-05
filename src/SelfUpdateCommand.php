@@ -61,6 +61,7 @@ EOT
      */
     protected function getReleasesFromGithub()
     {
+        $version_parser = new VersionParser();
         $opts = [
             'http' => [
                 'method' => 'GET',
@@ -80,8 +81,14 @@ EOT
         }
         $parsed_releases = [];
         foreach ($releases as $release) {
-            $parsed_releases[$release->tag_name] = [
-                'tag_name' => $release->tag_name,
+            try {
+                $normalized = $version_parser->normalize($release->tag_name);
+            } catch (\UnexpectedValueException $e) {
+                // If this version does not look quite right, let's ignore it.
+                continue;
+            }
+            $parsed_releases[$normalized] = [
+                'tag_name' => $normalized,
                 'assets' => $release->assets,
             ];
         }
@@ -106,13 +113,8 @@ EOT
             if (count($release['assets']) && is_object($release['assets'][0])) {
                 $current_version = $release['tag_name'];
                 if ($major_constraint) {
-                    try {
-                        if (!Semver::satisfies($current_version, $major_constraint)) {
-                            // If it does not satisfies, look for the next one.
-                            continue;
-                        }
-                    } catch (\UnexpectedValueException $e) {
-                        // If this version does not look quite right, let's ignore it.
+                    if (!Semver::satisfies($current_version, $major_constraint)) {
+                        // If it does not satisfies, look for the next one.
                         continue;
                     }
                 }
