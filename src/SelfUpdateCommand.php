@@ -103,7 +103,7 @@ EOT
     /**
      * Get latest release according to given constraints
      */
-    public function getLatestReleaseFromGithub($preview = false, $major_constraint = ''): array {
+    public function getLatestReleaseFromGithub($preview = false, $major_constraint = '') {
         $releases = $this->getReleasesFromGithub();
         $version = null;
         $url = null;
