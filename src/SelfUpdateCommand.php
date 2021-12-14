@@ -146,9 +146,7 @@ EOT
             }
 
             $releaseVersion = $release['tag_name'];
-            if ($this->isCompatible
-                && null !== $this->getMajorVersionConstraint()
-                && !Semver::satisfies($releaseVersion , $this->getMajorVersionConstraint())) {
+            if ($this->isCompatible && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
                 // If it does not satisfies, look for the next one.
                 continue;
             }
@@ -249,16 +247,16 @@ EOT
     }
 
     /**
-     * Returns the major version constraint.
+     * Returns TRUE if the release version satisfies current major version constraint.
      *
-     * @return string|null
+     * @return bool
      */
-    protected function getMajorVersionConstraint()
+    protected function satisfiesMajorVersionConstraint(string $releaseVersion)
     {
         if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
-            return '^' . $matches[1];
+            return Semver::satisfies($releaseVersion , '^' . $matches[1]);
         }
 
-        return null;
+        return false;
     }
 }
