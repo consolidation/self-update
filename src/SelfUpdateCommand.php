@@ -113,10 +113,6 @@ EOT
                 continue;
             }
 
-            if (null !== $this->versionConstraint && !Semver::satisfies($normalized, $this->versionConstraint)) {
-                continue;
-            }
-
             $parsed_releases[$normalized] = [
                 'tag_name' => $normalized,
                 'assets' => $release->assets,
@@ -151,8 +147,13 @@ EOT
                 continue;
             }
 
-            if (!$this->isPreview && VersionParser::parseStability($releaseVersion ) !== 'stable') {
+            if (!$this->isPreview && VersionParser::parseStability($releaseVersion) !== 'stable') {
                 // If preview not requested and current version is not stable, look for the next one.
+                continue;
+            }
+
+            if (null !== $this->versionConstraint && !Semver::satisfies($releaseVersion, $this->versionConstraint)) {
+                // Release version does not match version constraint option.
                 continue;
             }
 
