@@ -26,26 +26,6 @@ class SelfUpdateCommand extends Command
 
     protected $applicationName;
 
-    /**
-     * @var bool
-     */
-    protected $isPreview = false;
-
-    /**
-     * @var bool
-     */
-    protected $isStable = true;
-
-    /**
-     * @var bool
-     */
-    protected $isCompatible = false;
-
-    /**
-     * @var null|string
-     */
-    protected $versionConstraint = null;
-
     public function __construct($applicationName = null, $currentVersion = null, $gitHubRepository = null)
     {
         $this->applicationName = $applicationName;
@@ -130,12 +110,21 @@ EOT
     /**
      * Get the latest release version and download URL according to given constraints.
      *
+     * @param array
+     *
      * @throws \Exception
      *
      * @return string[]|null
-     *  "version" and "download_url" elements if the latest release is available, otherwise - NULL.
+     *    "version" and "download_url" elements if the latest release is available, otherwise - NULL.
      */
-    public function getLatestReleaseFromGithub() {
+    public function getLatestReleaseFromGithub(array $options)
+    {
+        $options = array_merge([
+              'preview' => false,
+              'compatible' => false,
+              'version_constraint' => null,
+            ], $options);
+
         foreach ($this->getReleasesFromGithub() as $release) {
             // We do not care about this release if it does not contain assets.
             if (!isset($release['assets'][0]) || !is_object($release['assets'][0])) {
@@ -143,24 +132,19 @@ EOT
             }
 
             $releaseVersion = $release['tag_name'];
-            if ($this->isCompatible && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
+            if ($options['compatible'] && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
                 // If it does not satisfies, look for the next one.
                 continue;
             }
 
-            if (!$this->isPreview && VersionParser::parseStability($releaseVersion) !== 'stable') {
+            if (!$options['preview'] && VersionParser::parseStability($releaseVersion) !== 'stable') {
                 // If preview not requested and current version is not stable, look for the next one.
                 continue;
             }
 
-            if (null !== $this->versionConstraint && !Semver::satisfies($releaseVersion, $this->versionConstraint)) {
+            if (null !== $options['version_constraint'] && !Semver::satisfies($releaseVersion, $options['version_constraint'])) {
                 // Release version does not match version constraint option.
                 continue;
-            }
-
-            if (Semver::satisfies($releaseVersion, $this->currentVersion)) {
-                // The latest release matches the current one.
-                return null;
             }
 
             return [
@@ -201,17 +185,21 @@ EOT
             );
         }
 
-        $this->isPreview = $input->getOption('preview');
-        $this->isStable = $input->getOption('stable') || !$this->isPreview;
-        if ($this->isPreview && $this->isStable) {
+        $isPreviewOptionSet = $input->getOption('preview');
+        $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
+        if ($isPreviewOptionSet && $isStable) {
             throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
         }
 
-        $this->isCompatible = $input->getOption('compatible');
-        $this->versionConstraint = $input->getArgument('version_constraint');
+        $isCompatibleOptionSet = $input->getOption('compatible');
+        $versionConstraintArg = $input->getArgument('version_constraint');
 
-        $latestRelease = $this->getLatestReleaseFromGithub();
-        if (null === $latestRelease) {
+        $latestRelease = $this->getLatestReleaseFromGithub([
+            'preview' => $isPreviewOptionSet,
+            'compatible' => $isCompatibleOptionSet,
+            'version_constraint' => $versionConstraintArg,
+        ]);
+        if (null === $latestRelease || Semver::satisfies($latestRelease['version'], $this->currentVersion)) {
             $output->writeln('No update available');
             return 0;
         }
@@ -235,7 +223,7 @@ EOT
             @rename($tempFilename, $localFilename);
             $output->writeln('<info>Successfully updated ' . $programName . '</info>');
 
-            exit;
+            $this->_exit();
         } catch (\Exception $e) {
             @unlink($tempFilename);
             if (! $e instanceof \UnexpectedValueException && ! $e instanceof \PharException) {
@@ -260,5 +248,18 @@ EOT
         }
 
         return false;
+    }
+
+    /**
+     * Stop execution
+     *
+     * This is a workaround to prevent warning of dispatcher after replacing
+     * the phar file.
+     *
+     * @return void
+     */
+    protected function _exit()
+    {
+        exit;
     }
 }
