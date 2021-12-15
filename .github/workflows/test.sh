@@ -35,18 +35,18 @@ echo "Self update --compatible"
 cp -r ./wonder-backup wonder && ./wonder self:update --compatible
 ./wonder info | grep "1.3"
 
-echo "Self update --version_constraint test #1"
-cp -r ./wonder-backup wonder && ./wonder self:update --version_constraint=^1.2
+echo "Self update version_constraint arg test #1"
+cp -r ./wonder-backup wonder && ./wonder self:update ^1.2
 ./wonder info | grep "1.3"
 
-echo "Self update --version_constraint test #2"
-cp -r ./wonder-backup wonder && ./wonder self:update --version_constraint=2.0
+echo "Self update version_constraint arg test #2"
+cp -r ./wonder-backup wonder && ./wonder self:update 2.0
 ./wonder info | grep "2.0"
 
-echo "Self update --version_constraint test #3"
-cp -r ./wonder-backup wonder && ./wonder self:update --version_constraint=^1 --preview
+echo "Self update version_constraint arg test #3"
+cp -r ./wonder-backup wonder && ./wonder self:update ^1 --preview
 ./wonder info | grep "1.4-alpha1"
 
-echo "Self update --version_constraint test #4"
-cp -r ./wonder-backup wonder && ./wonder self:update --version_constraint=^1 --stable
+echo "Self update version_constraint arg test #4"
+cp -r ./wonder-backup wonder && ./wonder self:update ^1 --stable
 ./wonder info | grep "1.3"
