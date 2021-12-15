@@ -5,6 +5,7 @@ namespace SelfUpdate;
 use Composer\Semver\VersionParser;
 use Composer\Semver\Semver;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -65,10 +66,10 @@ class SelfUpdateCommand extends Command
         $this
             ->setAliases(array('update', 'self-update'))
             ->setDescription("Updates $app to the latest version.")
+            ->addArgument('version_constraint', InputArgument::OPTIONAL, 'Apply version constraint')
             ->addOption('stable', NULL, InputOption::VALUE_NONE, 'Use stable releases (default)')
             ->addOption('preview', NULL, InputOption::VALUE_NONE, 'Preview unstable (e.g., alpha, beta, etc.) releases')
             ->addOption('compatible', NULL, InputOption::VALUE_NONE, 'Stay on current major version')
-            ->addOption('version_constraint', NULL, InputOption::VALUE_REQUIRED, 'Apply version constraint')
             ->setHelp(
                 <<<EOT
 The <info>self-update</info> command checks github for newer
@@ -207,7 +208,7 @@ EOT
         }
 
         $this->isCompatible = $input->getOption('compatible');
-        $this->versionConstraint = $input->getOption('version_constraint');
+        $this->versionConstraint = $input->getArgument('version_constraint');
 
         $latestRelease = $this->getLatestReleaseFromGithub();
         if (null === $latestRelease) {
