@@ -5,13 +5,14 @@ namespace SelfUpdate;
 use Composer\Semver\VersionParser;
 use Composer\Semver\Semver;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
 
 /**
- * Update the robo.phar from the latest github release
+ * Update the *.phar from the latest github release.
  *
  * @author Alexander Menk <alex.menk@gmail.com>
  */
@@ -45,6 +46,7 @@ class SelfUpdateCommand extends Command
         $this
             ->setAliases(array('update', 'self-update'))
             ->setDescription("Updates $app to the latest version.")
+            ->addArgument('version_constraint', InputArgument::OPTIONAL, 'Apply version constraint')
             ->addOption('stable', NULL, InputOption::VALUE_NONE, 'Use stable releases (default)')
             ->addOption('preview', NULL, InputOption::VALUE_NONE, 'Preview unstable (e.g., alpha, beta, etc.) releases')
             ->addOption('compatible', NULL, InputOption::VALUE_NONE, 'Stay on current major version')
@@ -57,7 +59,11 @@ EOT
     }
 
     /**
-     * Get all releases from Github.
+     * Get all releases from GitHub.
+     *
+     * @throws \Exception
+     *
+     * @return array
      */
     protected function getReleasesFromGithub()
     {
@@ -66,9 +72,9 @@ EOT
             'http' => [
                 'method' => 'GET',
                 'header' => [
-                    'User-Agent: ' . $this->applicationName  . ' (' . $this->gitHubRepository . ')' . ' Self-Update (PHP)'
-                ]
-            ]
+                    'User-Agent: ' . $this->applicationName  . ' (' . $this->gitHubRepository . ')' . ' Self-Update (PHP)',
+                ],
+            ],
         ];
 
         $context = stream_context_create($opts);
@@ -76,7 +82,7 @@ EOT
         $releases = file_get_contents('https://api.github.com/repos/' . $this->gitHubRepository . '/releases', false, $context);
         $releases = json_decode($releases);
 
-        if (! isset($releases[0])) {
+        if (!isset($releases[0])) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
         $parsed_releases = [];
@@ -87,6 +93,7 @@ EOT
                 // If this version does not look quite right, let's ignore it.
                 continue;
             }
+
             $parsed_releases[$normalized] = [
                 'tag_name' => $normalized,
                 'assets' => $release->assets,
@@ -101,38 +108,58 @@ EOT
     }
 
     /**
-     * Get latest release according to given constraints
+     * Get the latest release version and download URL according to given constraints.
+     *
+     * @param array
+     *
+     * @throws \Exception
+     *
+     * @return string[]|null
+     *    "version" and "download_url" elements if the latest release is available, otherwise - NULL.
      */
-    public function getLatestReleaseFromGithub($preview = false, $major_constraint = '') {
-        $releases = $this->getReleasesFromGithub();
-        $version = null;
-        $url = null;
+    public function getLatestReleaseFromGithub(array $options)
+    {
+        $options = array_merge([
+              'preview' => false,
+              'compatible' => false,
+              'version_constraint' => null,
+            ], $options);
 
-        foreach ($releases as $release) {
+        foreach ($this->getReleasesFromGithub() as $release) {
             // We do not care about this release if it does not contain assets.
-            if (count($release['assets']) && is_object($release['assets'][0])) {
-                $current_version = $release['tag_name'];
-                if ($major_constraint) {
-                    if (!Semver::satisfies($current_version, $major_constraint)) {
-                        // If it does not satisfies, look for the next one.
-                        continue;
-                    }
-                }
-                if (!$preview && VersionParser::parseStability($current_version) !== 'stable') {
-                    // If preview not requested and current version is not stable, look for the next one.
-                    continue;
-                }
-                $url = $release['assets'][0]->browser_download_url;
-                $version = $current_version;
-                break;
+            if (!isset($release['assets'][0]) || !is_object($release['assets'][0])) {
+                continue;
             }
+
+            $releaseVersion = $release['tag_name'];
+            if ($options['compatible'] && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
+                // If it does not satisfies, look for the next one.
+                continue;
+            }
+
+            if (!$options['preview'] && VersionParser::parseStability($releaseVersion) !== 'stable') {
+                // If preview not requested and current version is not stable, look for the next one.
+                continue;
+            }
+
+            if (null !== $options['version_constraint'] && !Semver::satisfies($releaseVersion, $options['version_constraint'])) {
+                // Release version does not match version constraint option.
+                continue;
+            }
+
+            return [
+                'version' => $releaseVersion,
+                'download_url' => $release['assets'][0]->browser_download_url,
+            ];
         }
 
-        return [ $version, $url ];
+        return null;
     }
 
     /**
      * {@inheritdoc}
+     *
+     * @throws \Exception
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
@@ -152,39 +179,36 @@ EOT
             );
         }
 
-        if (! is_writable($localFilename)) {
+        if (!is_writable($localFilename)) {
             throw new \Exception(
                 $programName . ' update failed: the "' . $localFilename . '" file could not be written (execute with sudo)'
             );
         }
 
-        $preview = $input->getOption('preview');
-        $stable = $input->getOption('stable') || !$preview;
-        $compatible = $input->getOption('compatible');
-        $major_constraint = '';
-        if ($preview && $stable) {
+        $isPreviewOptionSet = $input->getOption('preview');
+        $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
+        if ($isPreviewOptionSet && $isStable) {
             throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
         }
 
-        if ($compatible) {
-            if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
-                $current_major = $matches[1];
-                $major_constraint = "^${current_major}";
-            }
-        }
+        $isCompatibleOptionSet = $input->getOption('compatible');
+        $versionConstraintArg = $input->getArgument('version_constraint');
 
-        list($latest, $downloadUrl) = $this->getLatestReleaseFromGithub($preview, $major_constraint);
-
-        if (!$latest || Semver::satisfies($latest, $this->currentVersion)) {
+        $latestRelease = $this->getLatestReleaseFromGithub([
+            'preview' => $isPreviewOptionSet,
+            'compatible' => $isCompatibleOptionSet,
+            'version_constraint' => $versionConstraintArg,
+        ]);
+        if (null === $latestRelease || Semver::satisfies($latestRelease['version'], $this->currentVersion)) {
             $output->writeln('No update available');
             return 0;
         }
 
         $fs = new sfFilesystem();
 
-        $output->writeln('Downloading ' . $this->applicationName . ' (' . $this->gitHubRepository . ') ' . $latest);
+        $output->writeln('Downloading ' . $this->applicationName . ' (' . $this->gitHubRepository . ') ' . $latestRelease['version']);
 
-        $fs->copy($downloadUrl, $tempFilename);
+        $fs->copy($latestRelease['download_url'], $tempFilename);
 
         $output->writeln('Download finished');
 
@@ -198,6 +222,7 @@ EOT
             unset($phar);
             @rename($tempFilename, $localFilename);
             $output->writeln('<info>Successfully updated ' . $programName . '</info>');
+
             $this->_exit();
         } catch (\Exception $e) {
             @unlink($tempFilename);
@@ -206,8 +231,23 @@ EOT
             }
             $output->writeln('<error>The download is corrupted (' . $e->getMessage() . ').</error>');
             $output->writeln('<error>Please re-run the self-update command to try again.</error>');
+
             return 1;
         }
+    }
+
+    /**
+     * Returns TRUE if the release version satisfies current major version constraint.
+     *
+     * @return bool
+     */
+    protected function satisfiesMajorVersionConstraint(string $releaseVersion)
+    {
+        if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
+            return Semver::satisfies($releaseVersion , '^' . $matches[1]);
+        }
+
+        return false;
     }
 
     /**
