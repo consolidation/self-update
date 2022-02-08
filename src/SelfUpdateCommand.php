@@ -26,13 +26,24 @@ class SelfUpdateCommand extends Command
 
     protected $applicationName;
 
+    protected $ignorePharRunningCheck;
+
     public function __construct($applicationName = null, $currentVersion = null, $gitHubRepository = null)
     {
         $this->applicationName = $applicationName;
         $this->currentVersion = $currentVersion;
         $this->gitHubRepository = $gitHubRepository;
+        $this->ignorePharRunningCheck = false;
 
         parent::__construct(self::SELF_UPDATE_COMMAND_NAME);
+    }
+
+    /**
+     * Set ignorePharRunningCheck to true.
+     */
+    public function ignorePharRunningCheck($ignore = true)
+    {
+        $this->ignorePharRunningCheck = $ignore;
     }
 
     /**
@@ -163,7 +174,7 @@ EOT
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        if (empty(\Phar::running())) {
+        if (!$this->ignorePharRunningCheck && empty(\Phar::running())) {
             throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' only works when running the phar version of ' . $this->applicationName . '.');
         }
 
