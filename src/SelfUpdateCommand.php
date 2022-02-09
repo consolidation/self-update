@@ -4,6 +4,7 @@ namespace SelfUpdate;
 
 use Composer\Semver\VersionParser;
 use Composer\Semver\Semver;
+use Composer\Semver\Comparator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -210,7 +211,7 @@ EOT
             'compatible' => $isCompatibleOptionSet,
             'version_constraint' => $versionConstraintArg,
         ]);
-        if (null === $latestRelease || Semver::satisfies($latestRelease['version'], $this->currentVersion)) {
+        if (null === $latestRelease || Comparator::greaterThanOrEqualTo($this->currentVersion, $latestRelease['version'])) {
             $output->writeln('No update available');
             return 0;
         }
