@@ -109,6 +109,7 @@ EOT
             $parsed_releases[$normalized] = [
                 'tag_name' => $normalized,
                 'assets' => $release->assets,
+                'prerelease' => $release->prerelease,
             ];
         }
         $sorted_versions = Semver::rsort(array_keys($parsed_releases));
@@ -149,7 +150,7 @@ EOT
                 continue;
             }
 
-            if (!$options['preview'] && VersionParser::parseStability($releaseVersion) !== 'stable') {
+            if (!$options['preview'] && (VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease']) {
                 // If preview not requested and current version is not stable, look for the next one.
                 continue;
             }
