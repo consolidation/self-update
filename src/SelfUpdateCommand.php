@@ -150,7 +150,7 @@ EOT
                 continue;
             }
 
-            if (!$options['preview'] && (VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease']) {
+            if (!$options['preview'] && ((VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease'])) {
                 // If preview not requested and current version is not stable, look for the next one.
                 continue;
             }
