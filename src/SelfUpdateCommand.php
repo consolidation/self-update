@@ -32,7 +32,8 @@ class SelfUpdateCommand extends Command
     public function __construct($applicationName = null, $currentVersion = null, $gitHubRepository = null)
     {
         $this->applicationName = $applicationName;
-        $this->currentVersion = $currentVersion;
+        $version_parser = new VersionParser();
+        $this->currentVersion = $version_parser->normalize($currentVersion);
         $this->gitHubRepository = $gitHubRepository;
         $this->ignorePharRunningCheck = false;
 
