@@ -13,7 +13,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
 
 /**
- * Update the *.phar from the latest github release.
+ * Update the *.phar from the latest GitHub release.
  *
  * @author Alexander Menk <alex.menk@gmail.com>
  */
@@ -76,7 +76,7 @@ EOT
      *
      * @throws \Exception
      *
-     * @return string[]
+     * @return array
      */
     protected function getReleasesFromGithub()
     {
