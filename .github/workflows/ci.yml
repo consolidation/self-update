@@ -18,9 +18,9 @@ jobs:
       - name: Checkout self-update-fixtures
         uses: actions/checkout@v2
         with:
-          repository: consolidation/self-update-fixture
+          repository: danepowell/self-update-fixture
           path: self-update-fixture
-          ref: self-update
+          ref: symfony-54
       - name: Run Composer Install
         run: composer install
       - name: Add path repository
