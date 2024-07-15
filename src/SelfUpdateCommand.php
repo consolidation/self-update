@@ -130,7 +130,7 @@ EOT
      *    "version" and "download_url" elements if the latest release is
      *     available, otherwise - NULL.
      */
-    public function getLatestReleaseFromGithub(array $options): ?string
+    public function getLatestReleaseFromGithub(array $options): ?array
     {
         $options = array_merge([
               'preview' => false,
