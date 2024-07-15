@@ -8,7 +8,7 @@ jobs:
       run:
         working-directory: self-update-fixture
     container:
-      image: quay.io/pantheon-public/php-ci:v7.4
+      image: quay.io/pantheon-public/php-ci:v8.2
     name: Run functional tests
     steps:
       - name: Checkout
