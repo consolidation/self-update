@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
+use UnexpectedValueException;
 
 /**
  * Update the *.phar from the latest GitHub release.
@@ -19,17 +20,17 @@ use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
  */
 class SelfUpdateCommand extends Command
 {
-    const SELF_UPDATE_COMMAND_NAME = 'self:update';
+    public const SELF_UPDATE_COMMAND_NAME = 'self:update';
 
-    protected $gitHubRepository;
+    protected string $gitHubRepository;
 
-    protected $currentVersion;
+    protected string $currentVersion;
 
-    protected $applicationName;
+    protected string $applicationName;
 
-    protected $ignorePharRunningCheck;
+    protected bool $ignorePharRunningCheck;
 
-    public function __construct($applicationName = null, $currentVersion = null, $gitHubRepository = null)
+    public function __construct(string $applicationName = null, string $currentVersion = null, string $gitHubRepository = null)
     {
         $this->applicationName = $applicationName;
         $version_parser = new VersionParser();
@@ -43,7 +44,7 @@ class SelfUpdateCommand extends Command
     /**
      * Set ignorePharRunningCheck to true.
      */
-    public function ignorePharRunningCheck($ignore = true)
+    public function ignorePharRunningCheck($ignore = true): void
     {
         $this->ignorePharRunningCheck = $ignore;
     }
@@ -51,7 +52,7 @@ class SelfUpdateCommand extends Command
     /**
      * {@inheritdoc}
      */
-    protected function configure()
+    protected function configure(): void
     {
         $app = $this->applicationName;
 
@@ -65,7 +66,7 @@ class SelfUpdateCommand extends Command
             ->addOption('compatible', NULL, InputOption::VALUE_NONE, 'Stay on current major version')
             ->setHelp(
                 <<<EOT
-The <info>self-update</info> command checks github for newer
+The <info>self-update</info> command checks GitHub for newer
 versions of $app and if found, installs the latest.
 EOT
             );
@@ -78,7 +79,7 @@ EOT
      *
      * @return array
      */
-    protected function getReleasesFromGithub()
+    protected function getReleasesFromGithub(): array
     {
         $version_parser = new VersionParser();
         $opts = [
@@ -102,7 +103,7 @@ EOT
         foreach ($releases as $release) {
             try {
                 $normalized = $version_parser->normalize($release->tag_name);
-            } catch (\UnexpectedValueException $e) {
+            } catch (UnexpectedValueException) {
                 // If this version does not look quite right, let's ignore it.
                 continue;
             }
@@ -122,16 +123,14 @@ EOT
     }
 
     /**
-     * Get the latest release version and download URL according to given constraints.
-     *
-     * @param array
-     *
-     * @throws \Exception
+     * Get the latest release version and download URL according to given
+     * constraints.
      *
      * @return string[]|null
-     *    "version" and "download_url" elements if the latest release is available, otherwise - NULL.
+     *    "version" and "download_url" elements if the latest release is
+     *     available, otherwise - NULL.
      */
-    public function getLatestReleaseFromGithub(array $options)
+    public function getLatestReleaseFromGithub(array $options): ?array
     {
         $options = array_merge([
               'preview' => false,
@@ -175,10 +174,10 @@ EOT
      *
      * @throws \Exception
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if (!$this->ignorePharRunningCheck && empty(\Phar::running())) {
-            throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' only works when running the phar version of ' . $this->applicationName . '.');
+            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' only works when running the phar version of ' . $this->applicationName . '.');
         }
 
         $localFilename = realpath($_SERVER['argv'][0]) ?: $_SERVER['argv'][0];
@@ -187,14 +186,14 @@ EOT
 
         // check for permissions in local filesystem before start connection process
         if (! is_writable($tempDirectory = dirname($tempFilename))) {
-            throw new \Exception(
+            throw new \RuntimeException(
                 $programName . ' update failed: the "' . $tempDirectory .
                 '" directory used to download the temp file could not be written'
             );
         }
 
         if (!is_writable($localFilename)) {
-            throw new \Exception(
+            throw new \RuntimeException(
                 $programName . ' update failed: the "' . $localFilename . '" file could not be written (execute with sudo)'
             );
         }
@@ -202,7 +201,7 @@ EOT
         $isPreviewOptionSet = $input->getOption('preview');
         $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
         if ($isPreviewOptionSet && $isStable) {
-            throw new \Exception(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
+            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
         }
 
         $isCompatibleOptionSet = $input->getOption('compatible');
@@ -215,7 +214,7 @@ EOT
         ]);
         if (null === $latestRelease || Comparator::greaterThanOrEqualTo($this->currentVersion, $latestRelease['version'])) {
             $output->writeln('No update available');
-            return 0;
+            return Command::SUCCESS;
         }
 
         $fs = new sfFilesystem();
@@ -240,22 +239,22 @@ EOT
             $this->_exit();
         } catch (\Exception $e) {
             @unlink($tempFilename);
-            if (! $e instanceof \UnexpectedValueException && ! $e instanceof \PharException) {
+            if (! $e instanceof UnexpectedValueException && ! $e instanceof \PharException) {
                 throw $e;
             }
             $output->writeln('<error>The download is corrupted (' . $e->getMessage() . ').</error>');
             $output->writeln('<error>Please re-run the self-update command to try again.</error>');
 
-            return 1;
+            return Command::FAILURE;
         }
+        // This will never be reached, but it keeps static analysis tools happy :)
+        return Command::SUCCESS;
     }
 
     /**
      * Returns TRUE if the release version satisfies current major version constraint.
-     *
-     * @return bool
      */
-    protected function satisfiesMajorVersionConstraint(string $releaseVersion)
+    protected function satisfiesMajorVersionConstraint(string $releaseVersion): bool
     {
         if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
             return Semver::satisfies($releaseVersion , '^' . $matches[1]);
