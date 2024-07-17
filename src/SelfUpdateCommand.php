@@ -11,6 +11,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
+use Symfony\Component\HttpClient\HttpClient;
 use UnexpectedValueException;
 
 /**
@@ -75,26 +76,27 @@ EOT
     /**
      * Get all releases from GitHub.
      *
-     * @throws \Exception
-     *
      * @return array
+     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
+     *
+     * @throws \Exception
      */
     protected function getReleasesFromGithub(): array
     {
         $version_parser = new VersionParser();
+
         $opts = [
-            'http' => [
-                'method' => 'GET',
-                'header' => [
-                    'User-Agent: ' . $this->applicationName  . ' (' . $this->gitHubRepository . ')' . ' Self-Update (PHP)',
-                ],
+            'headers' => [
+                'User-Agent' => $this->applicationName  . ' (' . $this->gitHubRepository . ')' . ' Self-Update (PHP)',
             ],
         ];
+        $client = HttpClient::create($opts);
+        $response = $client->request(
+            'GET',
+            'https://api.github.com/repos/' . $this->gitHubRepository . '/releases'
+        );
 
-        $context = stream_context_create($opts);
-
-        $releases = file_get_contents('https://api.github.com/repos/' . $this->gitHubRepository . '/releases', false, $context);
-        $releases = json_decode($releases);
+        $releases = json_decode($response->getContent(), FALSE, 512, JSON_THROW_ON_ERROR);
 
         if (!isset($releases[0])) {
             throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
