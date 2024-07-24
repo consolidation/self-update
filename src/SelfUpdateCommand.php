@@ -3,15 +3,12 @@
 namespace SelfUpdate;
 
 use Composer\Semver\VersionParser;
-use Composer\Semver\Semver;
-use Composer\Semver\Comparator;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Filesystem\Filesystem as sfFilesystem;
-use Symfony\Component\HttpClient\HttpClient;
 use UnexpectedValueException;
 
 /**
@@ -74,104 +71,6 @@ EOT
     }
 
     /**
-     * Get all releases from GitHub.
-     *
-     * @return array
-     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
-     *
-     * @throws \Exception
-     */
-    protected function getReleasesFromGithub(): array
-    {
-        $version_parser = new VersionParser();
-
-        $opts = [
-            'headers' => [
-                'User-Agent' => $this->applicationName  . ' (' . $this->gitHubRepository . ')' . ' Self-Update (PHP)',
-            ],
-        ];
-        $client = HttpClient::create($opts);
-        $response = $client->request(
-            'GET',
-            'https://api.github.com/repos/' . $this->gitHubRepository . '/releases'
-        );
-
-        $releases = json_decode($response->getContent(), FALSE, 512, JSON_THROW_ON_ERROR);
-
-        if (!isset($releases[0])) {
-            throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
-        }
-        $parsed_releases = [];
-        foreach ($releases as $release) {
-            try {
-                $normalized = $version_parser->normalize($release->tag_name);
-            } catch (UnexpectedValueException) {
-                // If this version does not look quite right, let's ignore it.
-                continue;
-            }
-
-            $parsed_releases[$normalized] = [
-                'tag_name' => $release->tag_name,
-                'assets' => $release->assets,
-                'prerelease' => $release->prerelease,
-            ];
-        }
-        $sorted_versions = Semver::rsort(array_keys($parsed_releases));
-        $sorted_releases = [];
-        foreach ($sorted_versions as $version) {
-            $sorted_releases[$version] = $parsed_releases[$version];
-        }
-        return $sorted_releases;
-    }
-
-    /**
-     * Get the latest release version and download URL according to given
-     * constraints.
-     *
-     * @return string[]|null
-     *    "version" and "download_url" elements if the latest release is
-     *     available, otherwise - NULL.
-     */
-    public function getLatestReleaseFromGithub(array $options): ?array
-    {
-        $options = array_merge([
-              'preview' => false,
-              'compatible' => false,
-              'version_constraint' => null,
-            ], $options);
-
-        foreach ($this->getReleasesFromGithub() as $releaseVersion => $release) {
-            // We do not care about this release if it does not contain assets.
-            if (!isset($release['assets'][0]) || !is_object($release['assets'][0])) {
-                continue;
-            }
-
-            if ($options['compatible'] && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
-                // If it does not satisfy, look for the next one.
-                continue;
-            }
-
-            if (!$options['preview'] && ((VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease'])) {
-                // If preview not requested and current version is not stable, look for the next one.
-                continue;
-            }
-
-            if (null !== $options['version_constraint'] && !Semver::satisfies($releaseVersion, $options['version_constraint'])) {
-                // Release version does not match version constraint option.
-                continue;
-            }
-
-            return [
-                'version' => $releaseVersion,
-                'tag_name' => $release['tag_name'],
-                'download_url' => $release['assets'][0]->browser_download_url,
-            ];
-        }
-
-        return null;
-    }
-
-    /**
      * {@inheritdoc}
      *
      * @throws \Exception
@@ -206,18 +105,14 @@ EOT
             throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
         }
 
-        $isCompatibleOptionSet = $input->getOption('compatible');
-        $versionConstraintArg = $input->getArgument('version_constraint');
+        $selfUpdateManager = new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $isPreviewOptionSet, $input->getOption('compatible'), $input->getArgument('version_constraint'));
 
-        $latestRelease = $this->getLatestReleaseFromGithub([
-            'preview' => $isPreviewOptionSet,
-            'compatible' => $isCompatibleOptionSet,
-            'version_constraint' => $versionConstraintArg,
-        ]);
-        if (null === $latestRelease || Comparator::greaterThanOrEqualTo($this->currentVersion, $latestRelease['version'])) {
+        if ($selfUpdateManager->isUpToDate()) {
             $output->writeln('No update available');
             return Command::SUCCESS;
         }
+
+        $latestRelease = $selfUpdateManager->getLatestReleaseFromGithub();
 
         $fs = new sfFilesystem();
 
@@ -251,18 +146,6 @@ EOT
         }
         // This will never be reached, but it keeps static analysis tools happy :)
         return Command::SUCCESS;
-    }
-
-    /**
-     * Returns TRUE if the release version satisfies current major version constraint.
-     */
-    protected function satisfiesMajorVersionConstraint(string $releaseVersion): bool
-    {
-        if (preg_match('/^v?(\d+)/', $this->currentVersion, $matches)) {
-            return Semver::satisfies($releaseVersion , '^' . $matches[1]);
-        }
-
-        return false;
     }
 
     /**
