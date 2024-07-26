@@ -74,6 +74,7 @@ EOT
      * {@inheritdoc}
      *
      * @throws \Exception
+     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
      */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
@@ -99,7 +100,20 @@ EOT
             );
         }
 
-        $selfUpdateManager = $this->getSelfUpdateManager($input);
+        $isPreviewOptionSet = $input->getOption('preview');
+        $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
+        if ($isPreviewOptionSet && $isStable) {
+            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
+        }
+
+        $isCompatibleOptionSet = $input->getOption('compatible');
+        $versionConstraintArg = $input->getArgument('version_constraint');
+
+        $selfUpdateManager = $this->getSelfUpdateManager([
+            'preview' => $isPreviewOptionSet,
+            'compatible' => $isCompatibleOptionSet,
+            'version_constraint' => $versionConstraintArg,
+        ]);
 
         if ($selfUpdateManager->isUpToDate()) {
             $output->writeln('No update available');
@@ -142,13 +156,8 @@ EOT
         return Command::SUCCESS;
     }
 
-    public function getSelfUpdateManager(InputInterface $input): SelfUpdateManager {
-        $isPreviewOptionSet = $input->getOption('preview');
-        $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
-        if ($isPreviewOptionSet && $isStable) {
-            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
-        }
-        return new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $isPreviewOptionSet, $input->getOption('compatible'), $input->getArgument('version_constraint'));
+    public function getSelfUpdateManager(array $options): SelfUpdateManager {
+        return new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $options);
     }
 
     /**

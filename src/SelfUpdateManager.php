@@ -15,9 +15,17 @@ use UnexpectedValueException;
  */
 class SelfUpdateManager
 {
+    protected array $options;
     private ?array $latestRelease = null;
 
-    public function __construct(protected string $gitHubRepository, protected string $currentVersion, protected string $applicationName, protected bool $isPreviewOptionSet, protected bool $isCompatibleOptionSet, protected ?string $versionConstraintArg){}
+    public function __construct(protected string $gitHubRepository, protected string $currentVersion, protected string $applicationName, array $options){
+        // Options need to be passed in the constructor since we cache the latestRelease which may vary based on options.
+        $this->options = array_merge([
+            'preview' => false,
+            'compatible' => false,
+            'version_constraint' => null,
+        ], $options);
+    }
 
     /**
      * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
@@ -48,17 +56,17 @@ class SelfUpdateManager
                 continue;
             }
 
-            if ($this->isCompatibleOptionSet && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
+            if ($this->options['compatible'] && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
                 // If it does not satisfy, look for the next one.
                 continue;
             }
 
-            if (!$this->isPreviewOptionSet && ((VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease'])) {
+            if (!$this->options['preview'] && ((VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease'])) {
                 // If preview not requested and current version is not stable, look for the next one.
                 continue;
             }
 
-            if (null !== $this->versionConstraintArg && !Semver::satisfies($releaseVersion, $this->versionConstraintArg)) {
+            if (null !== $this->options['version_constraint'] && !Semver::satisfies($releaseVersion, $this->options['version_constraint'])) {
                 // Release version does not match version constraint option.
                 continue;
             }
