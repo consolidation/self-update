@@ -17,8 +17,11 @@ class SelfUpdateManager
 {
     private ?array $latestRelease = null;
 
-    public function __construct(protected string $gitHubRepository, protected string $currentVersion, protected string $applicationName, protected bool $isPreviewOptionSet, protected bool $isCompatibleOptionSet, protected string $versionConstraintArg){}
+    public function __construct(protected string $gitHubRepository, protected string $currentVersion, protected string $applicationName, protected bool $isPreviewOptionSet, protected bool $isCompatibleOptionSet, protected ?string $versionConstraintArg){}
 
+    /**
+     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
+     */
     public function isUpToDate(): bool {
         $latestRelease = $this->getLatestReleaseFromGithub();
         return NULL === $latestRelease || Comparator::greaterThanOrEqualTo($this->currentVersion, $latestRelease['version']);
@@ -39,29 +42,23 @@ class SelfUpdateManager
             return $this->latestRelease;
         }
 
-        $options = [
-            'preview' => $this->isPreviewOptionSet,
-            'compatible' => $this->isCompatibleOptionSet,
-            'version_constraint' => $this->versionConstraintArg,
-        ];
-
         foreach ($this->getReleasesFromGithub() as $releaseVersion => $release) {
             // We do not care about this release if it does not contain assets.
             if (!isset($release['assets'][0]) || !is_object($release['assets'][0])) {
                 continue;
             }
 
-            if ($options['compatible'] && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
+            if ($this->isCompatibleOptionSet && !$this->satisfiesMajorVersionConstraint($releaseVersion)) {
                 // If it does not satisfy, look for the next one.
                 continue;
             }
 
-            if (!$options['preview'] && ((VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease'])) {
+            if (!$this->isPreviewOptionSet && ((VersionParser::parseStability($releaseVersion) !== 'stable') || $release['prerelease'])) {
                 // If preview not requested and current version is not stable, look for the next one.
                 continue;
             }
 
-            if (null !== $options['version_constraint'] && !Semver::satisfies($releaseVersion, $options['version_constraint'])) {
+            if (null !== $this->versionConstraintArg && !Semver::satisfies($releaseVersion, $this->versionConstraintArg)) {
                 // Release version does not match version constraint option.
                 continue;
             }
