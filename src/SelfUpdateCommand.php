@@ -99,13 +99,7 @@ EOT
             );
         }
 
-        $isPreviewOptionSet = $input->getOption('preview');
-        $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
-        if ($isPreviewOptionSet && $isStable) {
-            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
-        }
-
-        $selfUpdateManager = new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $isPreviewOptionSet, $input->getOption('compatible'), $input->getArgument('version_constraint'));
+        $selfUpdateManager = $this->getSelfUpdateManager($input);
 
         if ($selfUpdateManager->isUpToDate()) {
             $output->writeln('No update available');
@@ -146,6 +140,15 @@ EOT
         }
         // This will never be reached, but it keeps static analysis tools happy :)
         return Command::SUCCESS;
+    }
+
+    public function getSelfUpdateManager(InputInterface $input): SelfUpdateManager {
+        $isPreviewOptionSet = $input->getOption('preview');
+        $isStable = $input->getOption('stable') || !$isPreviewOptionSet;
+        if ($isPreviewOptionSet && $isStable) {
+            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' support either stable or preview, not both.');
+        }
+        return new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $isPreviewOptionSet, $input->getOption('compatible'), $input->getArgument('version_constraint'));
     }
 
     /**

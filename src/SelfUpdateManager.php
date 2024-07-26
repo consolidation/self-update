@@ -31,6 +31,7 @@ class SelfUpdateManager
      * @return string[]|null
      *    "version" and "download_url" elements if the latest release is
      *     available, otherwise - NULL.
+     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
      */
     public function getLatestReleaseFromGithub(): ?array
     {
@@ -102,7 +103,7 @@ class SelfUpdateManager
         $releases = json_decode($response->getContent(), FALSE, 512, JSON_THROW_ON_ERROR);
 
         if (!isset($releases[0])) {
-            throw new \Exception('API error - no release found at GitHub repository ' . $this->gitHubRepository);
+            throw new \RuntimeException('API error - no release found at GitHub repository ' . $this->gitHubRepository);
         }
         $parsed_releases = [];
         foreach ($releases as $release) {
