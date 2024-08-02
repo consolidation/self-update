@@ -5,7 +5,11 @@ namespace SelfUpdate;
 use Composer\Semver\Comparator;
 use Composer\Semver\VersionParser;
 use Composer\Semver\Semver;
-use Symfony\Component\HttpClient\HttpClient;
+use GuzzleHttp\HandlerStack;
+use Kevinrob\GuzzleCache\CacheMiddleware;
+use Kevinrob\GuzzleCache\Storage\Psr6CacheStorage;
+use Kevinrob\GuzzleCache\Strategy\PublicCacheStrategy;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use UnexpectedValueException;
 
 /**
@@ -28,7 +32,7 @@ class SelfUpdateManager
     }
 
     /**
-     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function isUpToDate(): bool {
         $latestRelease = $this->getLatestReleaseFromGithub();
@@ -42,7 +46,7 @@ class SelfUpdateManager
      * @return string[]|null
      *    "version" and "download_url" elements if the latest release is
      *     available, otherwise - NULL.
-     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     public function getLatestReleaseFromGithub(): ?array
     {
@@ -86,26 +90,37 @@ class SelfUpdateManager
      * Get all releases from GitHub.
      *
      * @return array
-     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
      *
      * @throws \Exception
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     private function getReleasesFromGithub(): array
     {
         $version_parser = new VersionParser();
-
+        $stack = HandlerStack::create();
+        $stack->push(
+            new CacheMiddleware(
+                new PublicCacheStrategy(
+                    new Psr6CacheStorage(
+                        new FilesystemAdapter('self-update')
+                    )
+                )
+            ),
+            'cache'
+        );
         $opts = [
+            'handler' => $stack,
             'headers' => [
                 'User-Agent' => $this->applicationName  . ' (' . $this->gitHubRepository . ')' . ' Self-Update (PHP)',
             ],
         ];
-        $client = HttpClient::create($opts);
+        $client = new \GuzzleHttp\Client($opts);
         $response = $client->request(
             'GET',
             'https://api.github.com/repos/' . $this->gitHubRepository . '/releases'
         );
 
-        $releases = json_decode($response->getContent(), FALSE, 512, JSON_THROW_ON_ERROR);
+        $releases = json_decode($response->getBody(), FALSE, 512, JSON_THROW_ON_ERROR);
 
         if (!isset($releases[0])) {
             throw new \RuntimeException('API error - no release found at GitHub repository ' . $this->gitHubRepository);

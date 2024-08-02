@@ -74,7 +74,7 @@ EOT
      * {@inheritdoc}
      *
      * @throws \Exception
-     * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
+     * @throws \GuzzleHttp\Exception\GuzzleException
      */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
