@@ -20,10 +20,8 @@ use UnexpectedValueException;
 class SelfUpdateManager
 {
     protected array $options;
-    private ?array $latestRelease = null;
 
     public function __construct(protected string $gitHubRepository, protected string $currentVersion, protected string $applicationName, array $options){
-        // Options need to be passed in the constructor since we cache the latestRelease which may vary based on options.
         $this->options = array_merge([
             'preview' => false,
             'compatible' => false,
@@ -50,10 +48,6 @@ class SelfUpdateManager
      */
     public function getLatestReleaseFromGithub(): ?array
     {
-        if (null !== $this->latestRelease) {
-            return $this->latestRelease;
-        }
-
         foreach ($this->getReleasesFromGithub() as $releaseVersion => $release) {
             // We do not care about this release if it does not contain assets.
             if (!isset($release['assets'][0]) || !is_object($release['assets'][0])) {
@@ -75,12 +69,11 @@ class SelfUpdateManager
                 continue;
             }
 
-            $this->latestRelease = [
+            return [
                 'version' => $releaseVersion,
                 'tag_name' => $release['tag_name'],
                 'download_url' => $release['assets'][0]->browser_download_url,
             ];
-            return $this->latestRelease;
         }
 
         return null;
@@ -88,6 +81,8 @@ class SelfUpdateManager
 
     /**
      * Get all releases from GitHub.
+     *
+     * Network requests are cached up to the max-age in the GitHub response (i.e., 60 seconds).
      *
      * @return array
      *
