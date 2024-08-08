@@ -156,7 +156,7 @@ EOT
         return Command::SUCCESS;
     }
 
-    public function getSelfUpdateManager(array $options): SelfUpdateManager {
+    public function getSelfUpdateManager(array $options = []): SelfUpdateManager {
         return new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $options);
     }
 
