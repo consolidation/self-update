@@ -20,6 +20,10 @@ use UnexpectedValueException;
 class SelfUpdateManager
 {
 
+    /**
+     * We can't accept $options here because they likely depend on user input
+     * which isn't available at this point in the Symfony bootstrap.
+     */
     public function __construct(public string $applicationName, public string $currentVersion, public string $gitHubRepository){
     }
 
