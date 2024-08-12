@@ -2,7 +2,7 @@
 
 namespace SelfUpdate;
 
-use Composer\Semver\VersionParser;
+use JetBrains\PhpStorm\NoReturn;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,31 +20,9 @@ class SelfUpdateCommand extends Command
 {
     public const SELF_UPDATE_COMMAND_NAME = 'self:update';
 
-    protected string $gitHubRepository;
-
-    protected string $currentVersion;
-
-    protected string $applicationName;
-
-    protected bool $ignorePharRunningCheck;
-
-    public function __construct(string $applicationName = null, string $currentVersion = null, string $gitHubRepository = null)
+    public function __construct(private readonly SelfUpdateManager $selfUpdateManager, private readonly bool $ignorePharRunningCheck = false)
     {
-        $this->applicationName = $applicationName;
-        $version_parser = new VersionParser();
-        $this->currentVersion = $version_parser->normalize($currentVersion);
-        $this->gitHubRepository = $gitHubRepository;
-        $this->ignorePharRunningCheck = false;
-
         parent::__construct(self::SELF_UPDATE_COMMAND_NAME);
-    }
-
-    /**
-     * Set ignorePharRunningCheck to true.
-     */
-    public function ignorePharRunningCheck($ignore = true): void
-    {
-        $this->ignorePharRunningCheck = $ignore;
     }
 
     /**
@@ -52,7 +30,7 @@ class SelfUpdateCommand extends Command
      */
     protected function configure(): void
     {
-        $app = $this->applicationName;
+        $app = $this->selfUpdateManager->applicationName;
 
         // Follow Composer's pattern of command and channel names.
         $this
@@ -79,7 +57,7 @@ EOT
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if (!$this->ignorePharRunningCheck && empty(\Phar::running())) {
-            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' only works when running the phar version of ' . $this->applicationName . '.');
+            throw new \RuntimeException(self::SELF_UPDATE_COMMAND_NAME . ' only works when running the phar version of ' . $this->selfUpdateManager->applicationName . '.');
         }
 
         $localFilename = realpath($_SERVER['argv'][0]) ?: $_SERVER['argv'][0];
@@ -109,22 +87,22 @@ EOT
         $isCompatibleOptionSet = $input->getOption('compatible');
         $versionConstraintArg = $input->getArgument('version_constraint');
 
-        $selfUpdateManager = $this->getSelfUpdateManager([
+        $options = [
             'preview' => $isPreviewOptionSet,
             'compatible' => $isCompatibleOptionSet,
             'version_constraint' => $versionConstraintArg,
-        ]);
+        ];
 
-        if ($selfUpdateManager->isUpToDate()) {
+        if ($this->selfUpdateManager->isUpToDate($options)) {
             $output->writeln('No update available');
             return Command::SUCCESS;
         }
 
-        $latestRelease = $selfUpdateManager->getLatestReleaseFromGithub();
+        $latestRelease = $this->selfUpdateManager->getLatestReleaseFromGithub($options);
 
         $fs = new sfFilesystem();
 
-        $output->writeln('Downloading ' . $this->applicationName . ' (' . $this->gitHubRepository . ') ' . $latestRelease['tag_name']);
+        $output->writeln('Downloading ' . $this->selfUpdateManager->applicationName . ' (' . $this->selfUpdateManager->gitHubRepository . ') ' . $latestRelease['tag_name']);
 
         $fs->copy($latestRelease['download_url'], $tempFilename);
 
@@ -152,12 +130,6 @@ EOT
 
             return Command::FAILURE;
         }
-        // This will never be reached, but it keeps static analysis tools happy :)
-        return Command::SUCCESS;
-    }
-
-    public function getSelfUpdateManager(array $options = []): SelfUpdateManager {
-        return new SelfUpdateManager($this->gitHubRepository, $this->currentVersion, $this->applicationName, $options);
     }
 
     /**
@@ -168,8 +140,7 @@ EOT
      *
      * @return void
      */
-    protected function _exit()
-    {
+    #[NoReturn] protected function _exit(): void {
         exit;
     }
 }
