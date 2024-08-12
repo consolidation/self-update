@@ -21,8 +21,6 @@ class SelfUpdateManager
 {
 
     public function __construct(public string $applicationName, public string $currentVersion, public string $gitHubRepository){
-        $version_parser = new VersionParser();
-        $this->currentVersion = $version_parser->normalize($currentVersion);
     }
 
     /**
