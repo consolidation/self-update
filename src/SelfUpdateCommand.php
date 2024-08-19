@@ -2,7 +2,6 @@
 
 namespace SelfUpdate;
 
-use JetBrains\PhpStorm\NoReturn;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -130,6 +129,8 @@ EOT
 
             return Command::FAILURE;
         }
+        // This will never be reached, but it keeps static analysis tools happy :)
+        return Command::SUCCESS;
     }
 
     /**
@@ -140,7 +141,7 @@ EOT
      *
      * @return void
      */
-    #[NoReturn] protected function _exit(): void {
+    protected function _exit(): void {
         exit;
     }
 }
