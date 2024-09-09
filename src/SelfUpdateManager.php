@@ -32,7 +32,7 @@ class SelfUpdateManager
      */
     public function isUpToDate(array $options = []): bool {
         $latestRelease = $this->getLatestReleaseFromGithub($options);
-        return NULL === $latestRelease || Comparator::greaterThanOrEqualTo($this->currentVersion, $latestRelease['version']);
+        return NULL === $latestRelease || Comparator::greaterThanOrEqualTo($this->currentVersion, $latestRelease['tag_name']);
     }
 
     /**
