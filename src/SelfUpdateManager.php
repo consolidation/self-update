@@ -25,6 +25,7 @@ class SelfUpdateManager
      * which isn't available at this point in the Symfony bootstrap.
      */
     public function __construct(public string $applicationName, public string $currentVersion, public string $gitHubRepository){
+      $this->currentVersion = (new VersionParser())->normalize($this->currentVersion);
     }
 
     /**
