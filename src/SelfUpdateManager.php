@@ -58,7 +58,7 @@ class SelfUpdateManager
             $pharAsset = null;
             if (isset($release['assets']) && is_array($release['assets'])) {
                 foreach ($release['assets'] as $asset) {
-                    if (is_object($asset) && isset($asset->browser_download_url) && str_ends_with($asset->browser_download_url, '.phar')) {
+                    if (is_object($asset) && isset($asset->content_type) && $asset->content_type === 'application/octet-stream') {
                         $pharAsset = $asset;
                         break;
                     }
