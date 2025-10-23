@@ -54,8 +54,18 @@ class SelfUpdateManager
         ], $options);
 
         foreach ($this->getReleasesFromGithub() as $releaseVersion => $release) {
-            // We do not care about this release if it does not contain assets.
-            if (!isset($release['assets'][0]) || !is_object($release['assets'][0])) {
+            // Find the first asset with a .phar extension.
+            $pharAsset = null;
+            if (isset($release['assets']) && is_array($release['assets'])) {
+                foreach ($release['assets'] as $asset) {
+                    if (is_object($asset) && isset($asset->browser_download_url) && str_ends_with($asset->browser_download_url, '.phar')) {
+                        $pharAsset = $asset;
+                        break;
+                    }
+                }
+            }
+
+            if (!$pharAsset) {
                 continue;
             }
 
@@ -77,7 +87,7 @@ class SelfUpdateManager
             return [
                 'version' => $releaseVersion,
                 'tag_name' => $release['tag_name'],
-                'download_url' => $release['assets'][0]->browser_download_url,
+                'download_url' => $pharAsset->browser_download_url,
             ];
         }
 
