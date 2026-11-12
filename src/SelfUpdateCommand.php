@@ -61,7 +61,8 @@ EOT
 
         $localFilename = realpath($_SERVER['argv'][0]) ?: $_SERVER['argv'][0];
         $programName   = basename($localFilename);
-        $tempFilename  = dirname($localFilename) . '/' . basename($localFilename, '.phar') . '-temp.phar';
+        $isPhar = PHP_SAPI !== 'micro';
+        $tempFilename = dirname($localFilename) . '/' . basename($localFilename, $isPhar ? '.phar' : '') . '-temp' . ($isPhar ? '.phar' : '.tar.gz');
 
         // check for permissions in local filesystem before start connection process
         if (! is_writable($tempDirectory = dirname($tempFilename))) {
@@ -86,10 +87,25 @@ EOT
         $isCompatibleOptionSet = $input->getOption('compatible');
         $versionConstraintArg = $input->getArgument('version_constraint');
 
+        // Determine asset patterns
+        if ($isPhar) {
+            $assetPattern = '/^.*\.phar$/i';
+        } else {
+            // Assume native binary tar.gz pattern: native-<name>-<platform>.tar.gz
+            $platform = php_uname('s') === 'Linux' ? 'linux' : (php_uname('s') === 'Darwin' ? 'macos' : 'windows');
+            $arch = php_uname('m');
+            // Maybe one day the world can agree on what to call this architecture.
+            if ($arch === 'arm64') {
+                $arch = 'aarch64';
+            }
+            $assetPattern = '/^.*-' . $platform . '-' . $arch . '\.tar.gz$/i';
+        }
+
         $options = [
             'preview' => $isPreviewOptionSet,
             'compatible' => $isCompatibleOptionSet,
             'version_constraint' => $versionConstraintArg,
+            'asset_pattern' => $assetPattern,
         ];
 
         if ($this->selfUpdateManager->isUpToDate($options)) {
@@ -110,26 +126,42 @@ EOT
         try {
             \error_reporting(E_ALL); // suppress notices
 
-            @chmod($tempFilename, 0777 & ~umask());
-            // test the phar validity
-            $phar = new \Phar($tempFilename);
-            // free the variable to unlock the file
-            unset($phar);
-            @rename($tempFilename, $localFilename);
-            $output->writeln('<info>Successfully updated ' . $programName . '</info>');
+            if ($isPhar) {
+                $output->writeln('<info>Updating phar...</info>');
+                @chmod($tempFilename, 0777 & ~umask());
+                // test the phar validity
+                $phar = new \Phar($tempFilename);
+                unset($phar);
+                @rename($tempFilename, $localFilename);
+                $output->writeln('<info>Successfully updated ' . $programName . '</info>');
+            } else {
+                $output->writeln('<info>Updating native binary...</info>');
+                // Native binary: extract from tar.gz and replace
+                try {
+                    $phar = new \PharData($tempFilename);
+                    // Extract binary (assume same name as programName)
+                    $extractedPath = dirname($localFilename) . '/' . $programName . '-extracted';
+                    if (!mkdir($extractedPath) && !is_dir($extractedPath)) {
+                        throw new \RuntimeException(sprintf('Directory "%s" was not created', $extractedPath));
+                    }
+                    $phar->extractTo($extractedPath, $programName, TRUE);
+                    @chmod($extractedPath . '/' . $programName, 0777 & ~umask());
+                    @rename($extractedPath . '/' . $programName, $localFilename);
+                    @unlink($tempFilename);
+                    @rmdir($extractedPath);
+                    $output->writeln('<info>Successfully updated ' . $programName . '</info>');
+                } catch (\Exception $e) {
+                    throw new \RuntimeException('Failed to extract binary from tar.gz: ' . $e->getMessage());
+                }
+            }
 
             $this->_exit();
         } catch (\Exception $e) {
             @unlink($tempFilename);
-            if (! $e instanceof UnexpectedValueException && ! $e instanceof \PharException) {
-                throw $e;
-            }
-            $output->writeln('<error>The download is corrupted (' . $e->getMessage() . ').</error>');
-            $output->writeln('<error>Please re-run the self-update command to try again.</error>');
-
+            $output->writeln('<error>Update failed: ' . $e->getMessage() . '</error>');
             return Command::FAILURE;
         }
-        // This will never be reached, but it keeps static analysis tools happy :)
+
         return Command::SUCCESS;
     }
 
